@@ -47,13 +47,17 @@ public class TransfersFacade implements Transfers {
     }
 
     @Override
-    public void applyPendingTransfer(final Transfer pendingTransfer) {
+    public synchronized void applyPendingTransfer(final Transfer pendingTransfer) {
 
         final Account from = lookupAccount(pendingTransfer.sourceAccount());
 
         final Account to = lookupAccount(pendingTransfer.targetAccount());
 
-        applyTransfer(from, to, pendingTransfer);
+        datastore.updateAccount(from, WITHDRAW.apply(from, pendingTransfer));
+
+        datastore.updateAccount(to, DEPOSIT.apply(to, pendingTransfer));
+
+        datastore.updateTransfer(pendingTransfer, APPLY_TRANSFER.apply(pendingTransfer));
     }
 
     @Override
@@ -71,18 +75,6 @@ public class TransfersFacade implements Transfers {
         return datastore.getAllTransfers();
     }
 
-    private void applyTransfer(final Account from,
-                               final Account to,
-                               final Transfer pendingTransfer){
-
-        final Account updatedFrom = WITHDRAW.apply(from, pendingTransfer);
-        final Account updatedTo = DEPOSIT.apply(to, pendingTransfer);
-        final Transfer updatedTransfer = APPLY_TRANSFER.apply(pendingTransfer);
-
-        datastore.updateAccount(from, updatedFrom);
-        datastore.updateAccount(to, updatedTo);
-        datastore.updateTransfer(pendingTransfer, updatedTransfer);
-    }
 
     private Account lookupAccount(final UUID uuid){
         return datastore.getAccount(uuid).orElseThrow(() -> new BusinessEntityNotFound(String.format("Account %s does not exist ", uuid.toString())));
